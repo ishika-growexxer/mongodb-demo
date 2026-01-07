@@ -21,6 +21,7 @@ A comprehensive JavaScript demo covering MongoDB basic and intermediate concepts
 1. Install dependencies:
    ```bash
    npm install
+   npm install express
    ```
 
 2. Configure database connection in `config.env`:
@@ -28,6 +29,7 @@ A comprehensive JavaScript demo covering MongoDB basic and intermediate concepts
    MONGODB_URI=mongodb://localhost:27017
    DB_NAME=customer_demo_db
    COLLECTION_NAME=customer_profiles
+   CITY_COLLECTION_NAME=cities
    ```
 
 3. Ensure MongoDB is running on your system
@@ -46,6 +48,13 @@ npm run dev
 
 ## What the Demo Covers
 
+### Relational Data Modeling
+- **Multiple Collections**: Separate collections for customers, cities, and APIs
+- **One-to-Many Relationships**: Cities linked to customers via references
+- **Foreign Key Pattern**: Using city IDs to establish relationships
+- **$lookup Aggregation**: Joining data across collections
+- **Embedded vs Referenced Data**: Examples of both approaches
+
 ### Geospatial Features
 - **2dsphere indexes** for location-based queries
 - **GeoJSON Point objects** with longitude/latitude coordinates
@@ -53,6 +62,13 @@ npm run dev
 - **$geoWithin queries** to find users in geographic polygons
 - **$geoNear aggregation** to calculate distances and sort by proximity
 - **Real-world coordinates** for major US cities (NYC, LA, Chicago, Boston, Miami)
+
+### API Collection Management
+- **Structured API metadata** storage
+- **Endpoint documentation** with method, path, and description
+- **API versioning** tracking
+- **Query examples** and use cases
+- **Response format** documentation
 
 ### Basic Operations
 - Connecting to MongoDB
@@ -69,6 +85,26 @@ npm run dev
 - **Geospatial operations and queries**
 - Error handling and connection management
 
+## Collections Schema
+
+### Customer Profiles
+- Customer information with contact details
+- City reference (foreign key to cities collection)
+- Purchase history and preferences
+- Timestamps and metadata
+
+### Cities
+- City name, state, and country
+- Geographic coordinates (GeoJSON format)
+- Population and timezone data
+- Related customers via reverse lookups
+
+### API Collections
+- API endpoint definitions
+- HTTP methods and paths
+- Request/response schemas
+- Usage examples and descriptions
+
 ### MongoDB Operators Used
 - `$set`, `$push` for updates
 - `$lt`, `$gte`, `$in` for queries
@@ -80,6 +116,7 @@ npm run dev
 
 ```
 mongo-db-demo/
+├── api.js           # Main api script
 ├── demo.js          # Main demo script
 ├── config.env       # Database configuration
 ├── package.json     # Dependencies and scripts

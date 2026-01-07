@@ -1,13 +1,14 @@
 const { MongoClient } = require('mongodb');
 require('dotenv').config({ path: './config.env' });
 
-const { MONGODB_URI, DB_NAME, COLLECTION_NAME } = process.env;
+const { MONGODB_URI, DB_NAME, COLLECTION_NAME, CITY_COLLECTION_NAME } = process.env;
 
-class MongoDemo {
+class CustomerProfileDemo {
   constructor() {
     this.client = null;
     this.db = null;
     this.collection = null;
+    this.cityCollection = null;
   }
 
   async connect() {
@@ -15,14 +16,17 @@ class MongoDemo {
       this.client = new MongoClient(MONGODB_URI);
       await this.client.connect();
       console.log('Connected to MongoDB');
-      
+
       this.db = this.client.db(DB_NAME);
       this.collection = this.db.collection(COLLECTION_NAME);
-      
-      console.log(`Using database: ${DB_NAME}`);
-      console.log(`Using collection: ${COLLECTION_NAME}`);
+
+      this.cityCollection = this.db.collection(CITY_COLLECTION_NAME);
+
+      console.log(`Database selected: ${DB_NAME}`);
+      console.log(`Collection selected: ${COLLECTION_NAME}`);
+      console.log(`City collection selected: ${CITY_COLLECTION_NAME}`); 
     } catch (error) {
-      console.error('Connection error:', error);
+      console.error('MongoDB connection failed:', error);
       throw error;
     }
   }
@@ -30,7 +34,7 @@ class MongoDemo {
   async disconnect() {
     if (this.client) {
       await this.client.close();
-      console.log('Disconnected from MongoDB');
+      console.log('MongoDB connection closed');
     }
   }
 
@@ -38,196 +42,253 @@ class MongoDemo {
     try {
       await this.collection.createIndex({ email: 1 }, { unique: true });
       await this.collection.createIndex({ age: 1 });
-      await this.collection.createIndex({ "address.city": 1 });
+      await this.collection.createIndex({ 'address.city': 1 });
+      await this.collection.createIndex({ location: '2dsphere' });
 
-      await this.collection.createIndex({ location: "2dsphere" });
-      
-      console.log('Indexes created successfully');
+      // ✅ ADDITION
+      await this.collection.createIndex({ cityId: 1 });
+      await this.cityCollection.createIndex({ name: 1 }, { unique: true });
+      await this.cityCollection.createIndex({ location: '2dsphere' });
+
+      console.log('Indexes ensured');
     } catch (error) {
-      console.error('Index creation error:', error);
+      console.error('Index creation failed:', error);
     }
+  }
+
+  async seedCities() {
+    console.log('Seeding city master data');
+
+    const cities = [
+      {
+        name: 'Bengaluru',
+        state: 'Karnataka',
+        country: 'India',
+        location: { type: 'Point', coordinates: [77.5946, 12.9716] }
+      },
+      {
+        name: 'Mumbai',
+        state: 'Maharashtra',
+        country: 'India',
+        location: { type: 'Point', coordinates: [72.8777, 19.076] }
+      },
+      {
+        name: 'Noida',
+        state: 'Uttar Pradesh',
+        country: 'India',
+        location: { type: 'Point', coordinates: [77.391, 28.5355] }
+      },
+      {
+        name: 'Chennai',
+        state: 'Tamil Nadu',
+        country: 'India',
+        location: { type: 'Point', coordinates: [80.2707, 13.0827] }
+      },
+      {
+        name: 'Pune',
+        state: 'Maharashtra',
+        country: 'India',
+        location: { type: 'Point', coordinates: [73.8567, 18.5204] }
+      }
+    ];
+
+    await this.cityCollection.deleteMany({});
+    const result = await this.cityCollection.insertMany(cities);
+
+    console.log('City master data inserted');
+    return result.insertedIds;
   }
 
   async insertDocuments() {
     try {
-      const singleUser = {
-        name: 'John Doe',
-        email: 'john@example.com',
-        age: 30,
+      const bengaluruCity = await this.cityCollection.findOne({ name: 'Bengaluru' });
+
+      const primaryCustomer = {
+        name: 'Amit Sharma',
+        email: 'amit.sharma@example.com',
+        age: 32,
+        cityId: bengaluruCity?._id,
+
         address: {
-          street: '123 Main St',
-          city: 'New York',
-          zipCode: '10001'
+          street: '12 MG Road',
+          city: 'Bengaluru',
+          zipCode: '560001'
         },
         location: {
           type: 'Point',
-          coordinates: [-74.006, 40.7128]
+          coordinates: [77.5946, 12.9716]
         },
-        hobbies: ['reading', 'swimming'],
+        hobbies: ['cycling', 'blogging'],
         createdAt: new Date()
       };
 
-      const result = await this.collection.insertOne(singleUser);
-      console.log('Single document inserted:', result.insertedId);
+      const singleResult = await this.collection.insertOne(primaryCustomer);
+      console.log('Primary record inserted:', singleResult.insertedId);
 
-      const multipleUsers = [
+      const mumbai = await this.cityCollection.findOne({ name: 'Mumbai' });
+      const noida = await this.cityCollection.findOne({ name: 'Noida' });
+      const chennai = await this.cityCollection.findOne({ name: 'Chennai' });
+
+      const additionalCustomers = [
         {
-          name: 'Jane Smith',
-          email: 'jane@example.com',
-          age: 25,
+          name: 'Neha Verma',
+          email: 'neha.verma@example.com',
+          age: 26,
+          cityId: mumbai?._id,
           address: {
-            street: '456 Oak Ave',
-            city: 'Los Angeles',
-            zipCode: '90210'
+            street: '88 Link Road',
+            city: 'Mumbai',
+            zipCode: '400050'
           },
           location: {
             type: 'Point',
-            coordinates: [-118.2437, 34.0522] 
+            coordinates: [72.8777, 19.076]
           },
-          hobbies: ['painting', 'hiking'],
+          hobbies: ['yoga', 'reading'],
           createdAt: new Date()
         },
         {
-          name: 'Bob Johnson',
-          email: 'bob@example.com',
-          age: 35,
+          name: 'Rahul Mehta',
+          email: 'rahul.mehta@example.com',
+          age: 38,
+          cityId: noida?._id,
           address: {
-            street: '789 Pine Rd',
-            city: 'Chicago',
-            zipCode: '60601'
+            street: '45 Sector 18',
+            city: 'Noida',
+            zipCode: '201301'
           },
           location: {
             type: 'Point',
-            coordinates: [-87.6298, 41.8781]
+            coordinates: [77.391, 28.5355]
           },
-          hobbies: ['cooking', 'traveling'],
+          hobbies: ['traveling', 'photography'],
           createdAt: new Date()
         },
         {
-          name: 'Alice Brown',
-          email: 'alice@example.com',
-          age: 28,
+          name: 'Sneha Iyer',
+          email: 'sneha.iyer@example.com',
+          age: 29,
+          cityId: chennai?._id,
           address: {
-            street: '321 Elm St',
-            city: 'Boston',
-            zipCode: '02101'
+            street: '10 Anna Salai',
+            city: 'Chennai',
+            zipCode: '600002'
           },
           location: {
             type: 'Point',
-            coordinates: [-71.0589, 42.3601]
+            coordinates: [80.2707, 13.0827]
           },
-          hobbies: ['photography', 'yoga'],
+          hobbies: ['painting', 'meditation'],
           createdAt: new Date()
         }
       ];
 
-      const bulkResult = await this.collection.insertMany(multipleUsers);
-      console.log('Multiple documents inserted:', bulkResult.insertedIds);
-      
-      return bulkResult.insertedIds;
+      await this.collection.insertMany(additionalCustomers);
+      console.log('Additional records inserted');
     } catch (error) {
-      console.error('Insert error:', error);
+      console.error('Insert operation failed:', error);
       throw error;
     }
   }
 
   async readDocuments() {
     try {
-      const allUsers = await this.collection.find({}).toArray();
-      console.log(`Found ${allUsers.length} users`);
+      const allRecords = await this.collection.find({}).toArray();
+      console.log(`Records found: ${allRecords.length}`);
 
-      const youngUsers = await this.collection.find({ age: { $lt: 30 } }).toArray();
-      console.log(`Found ${youngUsers.length} users under 30`);
+      const youngerRecords = await this.collection.find({ age: { $lt: 30 } }).toArray();
+      console.log(`Records under age 30: ${youngerRecords.length}`);
 
-      const userNames = await this.collection.find({}, { name: 1, email: 1, _id: 0 }).toArray();
-      console.log('User names and emails:', userNames);
+      const projectedRecords = await this.collection
+        .find({}, { name: 1, email: 1, _id: 0 })
+        .toArray();
+      console.log('Projection query executed');
 
-      const oneUser = await this.collection.findOne({ name: 'John Doe' });
-      console.log('Found user:', oneUser ? oneUser.name : 'Not found');
+      const singleRecord = await this.collection.findOne({ name: 'Amit Sharma' });
+      console.log(`Single record lookup: ${singleRecord ? 'found' : 'not found'}`);
 
-      const cityUsers = await this.collection.find({
-        'address.city': { $in: ['New York', 'Los Angeles'] },
+      const filteredRecords = await this.collection.find({
+        'address.city': { $in: ['Bengaluru', 'Mumbai'] },
         age: { $gte: 25 }
       }).toArray();
-      console.log(`Found ${cityUsers.length} users in NY/LA aged 25+`);
+      console.log(`City-based filter result: ${filteredRecords.length}`);
 
       const totalCount = await this.collection.countDocuments();
-      console.log(`Total users: ${totalCount}`);
-
-      return { allUsers, youngUsers, userNames, oneUser, cityUsers, totalCount };
+      console.log(`Total records in collection: ${totalCount}`);
     } catch (error) {
-      console.error('Read error:', error);
+      console.error('Read operation failed:', error);
       throw error;
     }
-    }
+  }
 
   async updateDocuments() {
     try {
-      const updateResult = await this.collection.updateOne(
-        { email: 'john@example.com' },
-        { 
-          $set: { 
-            age: 31,
-            'address.zipCode': '10002',
+      const singleUpdate = await this.collection.updateOne(
+        { email: 'amit.sharma@example.com' },
+        {
+          $set: {
+            age: 33,
+            'address.zipCode': '560002',
             updatedAt: new Date()
           },
           $push: { hobbies: 'gaming' }
         }
       );
-      console.log('Single document updated:', updateResult.modifiedCount);
+      console.log(`Single record updated: ${singleUpdate.modifiedCount}`);
 
-      const bulkUpdateResult = await this.collection.updateMany(
+      const bulkUpdate = await this.collection.updateMany(
         { age: { $lt: 30 } },
-        { 
-          $set: { 
+        {
+          $set: {
             category: 'young',
             updatedAt: new Date()
           }
         }
       );
-      console.log('Multiple documents updated:', bulkUpdateResult.modifiedCount);
+      console.log(`Bulk records updated: ${bulkUpdate.modifiedCount}`);
 
       const upsertResult = await this.collection.updateOne(
-        { email: 'newuser@example.com' },
-        { 
-          $set: { 
-            name: 'New User',
-            age: 22,
+        { email: 'new.customer@example.com' },
+        {
+          $set: {
+            name: 'New Customer',
+            age: 24,
             address: {
-              street: '999 New St',
-              city: 'Miami',
-              zipCode: '33101'
+              street: '99 New Street',
+              city: 'Pune',
+              zipCode: '411001'
             },
             location: {
               type: 'Point',
-              coordinates: [-80.1918, 25.7617]
+              coordinates: [73.8567, 18.5204]
             },
-            hobbies: ['surfing'],
+            hobbies: ['running'],
             createdAt: new Date()
           }
         },
         { upsert: true }
       );
-      console.log('Upsert result:', upsertResult.upsertedId ? 'Created new user' : 'Updated existing user');
 
-      return { updateResult, bulkUpdateResult, upsertResult };
+      console.log(
+        `Upsert operation: ${upsertResult.upsertedId ? 'inserted' : 'updated'}`
+      );
     } catch (error) {
-      console.error('Update error:', error);
+      console.error('Update operation failed:', error);
       throw error;
     }
   }
 
   async deleteDocuments() {
     try {
-      const deleteResult = await this.collection.deleteOne({ email: 'newuser@example.com' });
-      console.log('Single document deleted:', deleteResult.deletedCount);
+      const singleDelete = await this.collection.deleteOne({
+        email: 'new.customer@example.com'
+      });
+      console.log(`Single record deleted: ${singleDelete.deletedCount}`);
 
-      const bulkDeleteResult = await this.collection.deleteMany({ category: 'young' });
-      console.log('Multiple documents deleted:', bulkDeleteResult.deletedCount);
-
-      return { deleteResult, bulkDeleteResult };
+      const bulkDelete = await this.collection.deleteMany({ category: 'young' });
+      console.log(`Bulk records deleted: ${bulkDelete.deletedCount}`);
     } catch (error) {
-      console.error('Delete error:', error);
+      console.error('Delete operation failed:', error);
       throw error;
     }
   }
@@ -236,83 +297,65 @@ class MongoDemo {
     try {
       const pipeline = [
         { $match: { age: { $gt: 25 } } },
-        
-        { 
-          $group: { 
+        {
+          $group: {
             _id: '$address.city',
             count: { $sum: 1 },
             avgAge: { $avg: '$age' },
             users: { $push: '$name' }
-          } 
+          }
         },
-
         { $sort: { count: -1 } }
       ];
 
-      const aggregationResult = await this.collection.aggregate(pipeline).toArray();
-      console.log('Aggregation result:', aggregationResult);
-
-      return aggregationResult;
+      const result = await this.collection.aggregate(pipeline).toArray();
+      return result;
+      console.log('Aggregation pipeline executed');
     } catch (error) {
-      console.error('Aggregation error:', error);
+      console.error('Aggregation failed:', error);
       throw error;
     }
   }
 
   async runGeospatialQueries() {
     try {
-      console.log('\n--- Geospatial Queries ---');
+      console.log('Executing geospatial queries');
 
-      const nycCoordinates = [-74.006, 40.7128];
-      const nearbyUsers = await this.collection.find({
+      const referencePoint = [77.5946, 12.9716];
+
+      const nearbyRecords = await this.collection.find({
         location: {
           $near: {
-            $geometry: {
-              type: 'Point',
-              coordinates: nycCoordinates
-            },
+            $geometry: { type: 'Point', coordinates: referencePoint },
             $maxDistance: 1000000
           }
         }
       }).toArray();
-      
-      console.log(`Users within 1000km of NYC: ${nearbyUsers.length}`);
-      nearbyUsers.forEach(user => {
-        console.log(`- ${user.name} in ${user.address.city}`);
-      });
 
-     const northeasternPolygon = {
+      console.log(`Nearby records found: ${nearbyRecords.length}`);
+
+      const regionPolygon = {
         type: 'Polygon',
         coordinates: [[
-          [-80, 35],
-          [-60, 35],  
-          [-60, 50],
-          [-80, 50],
-          [-80, 35]
+          [68, 8],
+          [98, 8],
+          [98, 35],
+          [68, 35],
+          [68, 8]
         ]]
       };
 
-      const northeasternUsers = await this.collection.find({
-        location: {
-          $geoWithin: {
-            $geometry: northeasternPolygon
-          }
-        }
+      const regionalRecords = await this.collection.find({
+        location: { $geoWithin: { $geometry: regionPolygon } }
       }).toArray();
 
-      console.log(`\nUsers in northeastern US: ${northeasternUsers.length}`);
-      northeasternUsers.forEach(user => {
-        console.log(`- ${user.name} in ${user.address.city}`);
-      });
+      console.log(`Regional records found: ${regionalRecords.length}`);
 
-      const usersWithDistance = await this.collection.aggregate([
+      const distanceResults = await this.collection.aggregate([
         {
           $geoNear: {
-            near: {
-              type: 'Point',
-              coordinates: nycCoordinates
-            },
-            distanceField: 'distanceFromNYC',
+            near: { type: 'Point', coordinates: referencePoint },
+            distanceField: 'distanceFromReference',
             spherical: true,
             distanceMultiplier: 0.001
           }
@@ -321,32 +364,53 @@ class MongoDemo {
           $project: {
             name: 1,
             city: '$address.city',
-            distanceFromNYC: { $round: ['$distanceFromNYC', 2] }
+            distanceFromReference: { $round: ['$distanceFromReference', 2] }
           }
         }
       ]).toArray();
 
-      console.log('\nUsers sorted by distance from NYC:');
-      usersWithDistance.forEach(user => {
-        console.log(`- ${user.name} in ${user.city}: ${user.distanceFromNYC} km`);
-      });
-
-      return { nearbyUsers, northeasternUsers, usersWithDistance };
+      console.log('Distance calculation completed');
     } catch (error) {
-      console.error('Geospatial query error:', error);
+      console.error('Geospatial queries failed:', error);
     }
+  }
+
+  async getCustomersWithCity() {
+    return await this.collection.aggregate([
+      {
+        $lookup: {
+          from: CITY_COLLECTION_NAME,
+          localField: "cityId",
+          foreignField: "_id",
+          as: "city"
+        }
+      },
+      { $unwind: "$city" },
+      {
+        $project: {
+          name: 1,
+          email: 1,
+          city: "$city.name",
+          state: "$city.state"
+        }
+      }
+    ]).toArray();
   }
 
   async runDemo() {
     try {
-      console.log('=== MongoDB Demo Started ===\n');
+      console.log('MongoDB demo started');
 
       await this.connect();
 
       await this.collection.deleteMany({});
-      console.log('Cleared existing documents');
-      
+      await this.cityCollection.deleteMany({});
+      console.log('Collection cleared');
+
       await this.createIndexes();
+
+      console.log('\n--- Seeding Documents ---');
+      await this.seedCities();
 
       console.log('\n--- Inserting Documents ---');
       await this.insertDocuments();
@@ -368,11 +432,11 @@ class MongoDemo {
 
       console.log('\n--- Final Document Count ---');
       const finalCount = await this.collection.countDocuments();
-      console.log(`Final user count: ${finalCount}`);
+      console.log(`Final record count: ${finalCount}`);
 
-      console.log('\n=== Demo Completed Successfully ===');
+      console.log('\n=== MongoDB demo completed ===');
     } catch (error) {
-      console.error('Demo failed:', error);
+      console.error('Demo execution failed:', error);
     } finally {
       await this.disconnect();
     }
@@ -380,8 +444,7 @@ class MongoDemo {
 }
 
 if (require.main === module) {
-  const demo = new MongoDemo();
-  demo.runDemo();
+  new CustomerProfileDemo().runDemo();
 }
 
-module.exports = MongoDemo; 
+module.exports = CustomerProfileDemo;
